@@ -80,7 +80,7 @@ IRIsourcePrefixMaps = {
 }
 
 
-# pull
+# pull ontologies 
 def download_ontologies(
     target_ontology_train: str,
     source_ontology_train: str,
