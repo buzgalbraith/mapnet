@@ -8,8 +8,8 @@ jpype1 = {version = "*"}
 torch = {version="*"}
 torchvision = {version="*"}
 torchaudio =  {version="*"}
-deeponto = "*"
-biomappings = "*"
+deeponto = {version="*"}
+biomappings = {version="*"}
 
 [dev-packages]
 
