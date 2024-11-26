@@ -158,8 +158,8 @@ def save_known_maps(
     #     + "\t1.0\n"
     # )
     def onto_filter(x):
-        return (x["target prefix"].lower() == target_ontology_train.lower()) & (
-            x["source prefix"].lower() == source_ontology_train.lower()
+        return (x["target prefix"].lower() == strip_digits(target_ontology_train.lower())) & (
+            x["source prefix"].lower() == strip_digits(source_ontology_train.lower())
         )
 
     def iri_map(x):
@@ -472,10 +472,11 @@ if __name__ == "__main__":
         use_biomappings=True,
         train_model=args.train_model,
     )
-    inference_across_ontologies(
-        config_path=args.config,
-        target_ontologies_inference=args.target_ontologies_inference,
-        source_ontologies_inference=args.source_ontologies_inference,
-        mappings_path=args.mappings_path,
-        ontology_paths=ontology_paths,
-    )
+    # inference_across_ontologies(
+    #     config_path=args.config,
+
+    #     target_ontologies_inference=args.target_ontologies_inference,
+    #     source_ontologies_inference=args.source_ontologies_inference,
+    #     mappings_path=args.mappings_path,
+    #     ontology_paths=ontology_paths,
+    # )
