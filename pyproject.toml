@@ -31,6 +31,7 @@ license-files = ["LICENSE"]
 
 [project.urls]
 <<<<<<< HEAD
+<<<<<<< HEAD
 Homepage = "https://github.com/gyorilab/mapnet"
 Repository = "https://github.com/gyorilab/mapnet.git"
 "Bug Tracker" = "https://github.com/gyorilab/mapnet/issues"
@@ -39,3 +40,9 @@ Repository = "https://github.com/gyorilab/mapnet.git"
 #Repository = "https://github.com/gyorilab/mapnet.git"
 #"Bug Tracker" = "https://github.com/gyorilab/mapnet/issues"
 >>>>>>> 4a3641b (changed how project builds)
+=======
+Homepage = "https://github.com/gyorilab/mapnet"
+Repository = "https://github.com/gyorilab/mapnet.git"
+"Bug Tracker" = "https://github.com/gyorilab/mapnet/issues"
+
+>>>>>>> 7c200ff (cleaned up some dependincies)
