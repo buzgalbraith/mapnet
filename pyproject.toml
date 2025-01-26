@@ -20,6 +20,7 @@ readme = "README.md"
 license-files = ["LICENSE"]
 
 [project.urls]
-#Homepage = "https://github.com/gyorilab/mapnet"
-#Repository = "https://github.com/gyorilab/mapnet.git"
-#"Bug Tracker" = "https://github.com/gyorilab/mapnet/issues"
+Homepage = "https://github.com/gyorilab/mapnet"
+Repository = "https://github.com/gyorilab/mapnet.git"
+"Bug Tracker" = "https://github.com/gyorilab/mapnet/issues"
+
