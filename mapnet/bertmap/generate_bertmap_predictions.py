@@ -13,6 +13,8 @@ from huggingface_hub import snapshot_download
 
 import biomappings
 from biomappings.resources import append_prediction_tuples
+from bioregistry.resolve import get_owl_download
+from bioregistry import parse_iri, get_iri
 
 parser = argparse.ArgumentParser(description="Train BERTMap Model")
 parser.add_argument("--config", default=DEFAULT_CONFIG_FILE, help="Path to Config File")
@@ -29,7 +31,7 @@ parser.add_argument(
 parser.add_argument(
     "--source_ontologies_inference",
     nargs="+",
-    default=["MESH2024"],
+    default=["MESH"],
     help="Ontologies to match as source during inference",
 )
 parser.add_argument(
@@ -38,7 +40,9 @@ parser.add_argument(
     default=["DOID", "CHEBI", "HGNC", "GO"],
     help="Ontologies to match as target during inference",
 )
-parser.add_argument("--ontologies_path", default="resources", help="Directory with ontology files")
+parser.add_argument(
+    "--ontologies_path", default="resources", help="Directory with ontology files"
+)
 parser.add_argument(
     "--mappings_path",
     default="mesh_ambig_mappings.tsv",
@@ -49,38 +53,19 @@ parser.add_argument(
     action="store_true",
     help="If present will locally train a model otherwise will pull from hugging face.",
 )
-ENDPOINTS = {
-    "GO": "https://purl.obolibrary.org/obo/go.owl",
-    "CHEBI": "https://ftp.ebi.ac.uk/pub/databases/chebi/ontology/chebi.owl",
-    "DOID": "https://github.com/DiseaseOntology/HumanDiseaseOntology/raw/refs/heads/main/src/ontology/doid.owl",
-    "HGNC": "https://storage.googleapis.com/public-download-files/hgnc/owl/owl/hgnc.owl",
-    "MESH": "https://data.bioontology.org/ontologies/RH-MESH/submissions"
-    "/3/download?apikey=8b5b7825-538d-40e0-9e9e-5ab9274a9aeb",  # SMALLER 2014 VERSION
-    "MESH2024": "https://data.bioontology.org/ontologies/MESH/submissions"
-    "/28/download?apikey=8b5b7825-538d-40e0-9e9e-5ab9274a9aeb",  # Larger 2024 version in TTL format
-}
-
-SOURCE_PREFIX_IRI_MAPS = {
-    "mesh": lambda x: "http://phenomebrowser.net/ontologies/mesh/mesh.owl#" + x,
-    "mesh2024": lambda x: "http://purl.bioontology.org/ontology/MESH/" + x,
-    "doid": lambda x: "http://purl.obolibrary.org/obo/" + x.replace(":", "_"),
-    "hgnc": lambda x: "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:" + x,
-    "chebi": lambda x: "http://purl.obolibrary.org/obo/" + x.replace(":", "_"),
-    "go": lambda x: "http://purl.obolibrary.org/obo/" + x.replace(":", "_"),
-}
-IRIsourcePrefixMaps = {
-    "mesh": lambda x: x.removeprefix("http://phenomebrowser.net/ontologies/mesh/mesh.owl#"),
-    "mesh2024": lambda x: x.removeprefix("http://purl.bioontology.org/ontology/MESH/"),
-    "doid": lambda x: x.removeprefix("http://purl.obolibrary.org/obo/").replace("_", ":"),
-    "hgnc": lambda x: x.removeprefix(
-        "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/"
-    ),
-    "chebi": lambda x: x.removeprefix("http://purl.obolibrary.org/obo/").replace("_", ":"),
-    "go": lambda x: x.removeprefix("http://purl.obolibrary.org/obo/").replace("_", ":"),
-}
 
 
-# pull ontologies 
+def get_iri_overload(prefix: str, identifier: str):
+    """overload of bioregistry's get_iri method to work with mesh path"""
+    identifier = identifier.split(":", 1)[-1]
+    prefix = prefix.lower()
+    if prefix.lower() != "mesh":
+        return get_iri(prefix, identifier)
+    else:
+        return "http://purl.bioontology.org/ontology/MESH/" + identifier
+
+
+# pull ontologies
 def download_ontologies(
     target_ontology_train: str,
     source_ontology_train: str,
@@ -96,13 +81,27 @@ def download_ontologies(
         + source_ontologies_inference
         + target_ontologies_inference
     ):
-        ext = ".ttl" if ontology.upper() == "MESH2024" else ".owl"
+        if ontology.upper() == "MESH":
+            ## bio-registry does not have a download link for mesh so adding this
+            ext = ".ttl"
+            url = "https://data.bioontology.org/ontologies/MESH/submissions/28/download?apikey=8b5b7825-538d-40e0-9e9e-5ab9274a9aeb"
+        else:
+            ext = ".owl"
+            url = get_owl_download(ontology.upper())
         ontology_path = os.path.join(ontologies_path, ontology.lower() + ext)
         ontology_paths[ontology.lower()] = ontology_path
         if not os.path.isfile(ontology_path):
             print("Downloading {0}".format(ontology))
-            cmd = ['wget', '-O', ontology_path, ENDPOINTS[ontology.upper()]]
+            cmd = ["wget", "-O", ontology_path, url]
             subprocess.run(cmd)
+            ## mesh is large so download the zip and unzip it.
+            if ontology.upper() == "MESH":
+                cmd_1 = ["mv", ontology_path, ontology_path + ".zip"]
+                subprocess.run(cmd_1)
+                cmd_2 = ["unzip", ontology_path + ".zip", "-d", ontology_path + "_dir"]
+                subprocess.run(cmd_2)
+                cmd_3 = ["mv", ontology_path + "_dir/MESH.ttl", ontology_path]
+                subprocess.run(cmd_3)
         else:
             print("found {0} at {1}".format(ontology.lower(), ontology_path))
     return ontology_paths
@@ -134,7 +133,9 @@ def load_bertmap(
         config.global_matching.enabled = False
         if not os.path.isdir("bertmap"):
             print("downloading model from hugging face")
-            snapshot_download(repo_id="buzgalbraith/BERTMAP-BioMappings", local_dir="./")
+            snapshot_download(
+                repo_id="buzgalbraith/BERTMAP-BioMappings", local_dir="./"
+            )
         else:
             print("Model found at bertmap")
     src_onto = Ontology(ontology_paths[source_ontology_train.lower()])
@@ -148,15 +149,6 @@ def save_known_maps(
     """Use true mappings from Biomappings as ground truth for training BertMap Model."""
     true_mappings = biomappings.load_mappings()
 
-    # onto_filter = lambda x: (x["target prefix"].lower() == target_ontology_train.lower()) & (
-    #     x["source prefix"].lower() == source_ontology_train.lower()
-    # )
-    # iri_map = lambda x: (
-    #     SOURCE_PREFIX_IRI_MAPS[source_ontology_train.lower()](x["source identifier"])
-    #     + "\t"
-    #     + SOURCE_PREFIX_IRI_MAPS[target_ontology_train.lower()](x["target identifier"])
-    #     + "\t1.0\n"
-    # )
     def onto_filter(x):
         return (x["target prefix"].lower() == target_ontology_train.lower()) & (
             x["source prefix"].lower() == source_ontology_train.lower()
@@ -164,9 +156,9 @@ def save_known_maps(
 
     def iri_map(x):
         return (
-            SOURCE_PREFIX_IRI_MAPS[source_ontology_train.lower()](x["source identifier"])
+            get_iri_overload(x["source prefix"], x["source identifier"])
             + "\t"
-            + SOURCE_PREFIX_IRI_MAPS[target_ontology_train.lower()](x["target identifier"])
+            + get_iri_overload(x["target prefix"], x["target identifier"])
             + "\t1.0\n"
         )
 
@@ -186,9 +178,6 @@ def save_known_maps(
 
 
 # inference
-def strip_digits(x):
-    """Remove numeric characters from a string."""
-    return "".join(filter(lambda x: not x.isdigit(), x))
 
 
 def bertmap_inference(
@@ -215,17 +204,15 @@ def bertmap_inference(
         conf = bertmap.mapping_predictor.bert_mapping_score(
             src_class_annotations, tgt_class_annotations
         )
-
-        source_identifier = IRIsourcePrefixMaps[source_prefix](src_class_iri)
-        target_identifier = IRIsourcePrefixMaps[target_prefix](tgt_class_iri)
-        # check if in provided map
+        source_identifier = parse_iri(src_class_iri)[1]
+        target_identifier = parse_iri(tgt_class_iri)[1]
         target_annotations = target_onto.get_annotations(tgt_class_iri)
         target_known_maps = [
-            x for x in target_annotations if strip_digits(source_prefix).upper() in x
+            x for x in target_annotations if source_prefix.upper() in x
         ]
         source_annotations = source_onto.get_annotations(src_class_iri)
         source_known_maps = [
-            x for x in source_annotations if strip_digits(target_prefix).upper() in x
+            x for x in source_annotations if target_prefix.upper() in x
         ]
         # if it is mapped at all that means the mapping is either already done or wrong so just skip
         if len(target_known_maps) > 0 or len(source_known_maps) > 0:
@@ -238,11 +225,11 @@ def bertmap_inference(
 
             rows.append(
                 biomappings.PredictionTuple(
-                    strip_digits(source_prefix),
+                    source_prefix,
                     source_identifier,
                     src_name,
                     relation,
-                    strip_digits(target_prefix),
+                    target_prefix,
                     target_identifier,
                     target_name,
                     match_type,
@@ -254,20 +241,23 @@ def bertmap_inference(
         src_class_annotations = bertmap.src_annotation_index[src_class_iri]
         tgt_class_annotations = bertmap.tgt_annotation_index[tgt_class_iri]
 
-        class_annotation_pairs = list(product(src_class_annotations, tgt_class_annotations))
+        class_annotation_pairs = list(
+            product(src_class_annotations, tgt_class_annotations)
+        )
         synonym_scores = bertmap.bert_synonym_classifier.predict(class_annotation_pairs)
         # only one element tensor is able to be extracted as a scalar by .item()
         conf = float(torch.mean(synonym_scores).item())
-        source_identifier = IRIsourcePrefixMaps[source_prefix](src_class_iri)
-        target_identifier = IRIsourcePrefixMaps[target_prefix](tgt_class_iri)
+        source_identifier = parse_iri(src_class_iri)[1]
+        target_identifier = parse_iri(tgt_class_iri)[1]
         # check if in provided map
         target_annotations = target_onto.get_annotations(tgt_class_iri)
         target_known_maps = [
-            x for x in target_annotations if strip_digits(source_prefix).upper() in x
+            x for x in target_annotations if source_prefix.upper() in x
         ]
+
         source_annotations = source_onto.get_annotations(src_class_iri)
         source_known_maps = [
-            x for x in source_annotations if strip_digits(target_prefix).upper() in x
+            x for x in source_annotations if target_prefix.upper() in x
         ]
         # if it is mapped at all that means the mapping is either already done or wrong so just skip
         if len(target_known_maps) > 0 or len(source_known_maps) > 0:
@@ -279,11 +269,11 @@ def bertmap_inference(
         else:
             rows.append(
                 biomappings.PredictionTuple(
-                    strip_digits(source_prefix),
+                    source_prefix,
                     source_identifier,
                     src_name,
                     relation,
-                    strip_digits(target_prefix),
+                    target_prefix,
                     target_identifier,
                     target_name,
                     match_type,
@@ -294,7 +284,9 @@ def bertmap_inference(
     return rows
 
 
-def get_novel_mappings(target_onto_prefix: str, source_onto_prefix: str, maps_path: str):
+def get_novel_mappings(
+    target_onto_prefix: str, source_onto_prefix: str, maps_path: str
+):
     """Get mappings to use for inference."""
     # get all potential mappings
     maps_to_check = get_maps_to_evaluate(
@@ -315,38 +307,28 @@ def get_novel_mappings(target_onto_prefix: str, source_onto_prefix: str, maps_pa
     return ambagious_maps, non_ambagious_maps
 
 
-def get_maps_to_evaluate(target_onto_prefix: str, source_onto_prefix: str, maps_path: str):
+def get_maps_to_evaluate(
+    target_onto_prefix: str, source_onto_prefix: str, maps_path: str
+):
     """Read in the initial set of mappings from a file."""
     target_name = target_onto_prefix.lower()
     source_name = source_onto_prefix.lower()
     mappings = open(maps_path).readlines()
 
-    # split_map = lambda x: x.split("\t")
-    # onto_filter = lambda x: (x[0].lower() == strip_digits(source_name)) & (
-    #     x[3].lower() == strip_digits(target_name)
-    # )
-    # iri_map = lambda x: (
-    #     SOURCE_PREFIX_IRI_MAPS[source_name](x[1]),
-    #     x[2],
-    #     SOURCE_PREFIX_IRI_MAPS[target_name](x[4]),
-    #     x[5].strip(),
-    # )
     def split_map(x):
         """Split an iterable of strings by tab."""
         return x.split("\t")
 
     def onto_filter(x):
         """Filter to ensure that maps are in the right ontology."""
-        return (x[0].lower() == strip_digits(source_name)) & (
-            x[3].lower() == strip_digits(target_name)
-        )
+        return (x[0].lower() == source_name) & (x[3].lower() == target_name)
 
     def iri_map(x):
         """Map to IRI."""
         return (
-            SOURCE_PREFIX_IRI_MAPS[source_name](x[1]),
+            get_iri_overload(source_name, x[1]),
             x[2],
-            SOURCE_PREFIX_IRI_MAPS[target_name](x[4]),
+            get_iri_overload(target_name, x[4]),
             x[5].strip(),
         )
 
@@ -354,7 +336,9 @@ def get_maps_to_evaluate(target_onto_prefix: str, source_onto_prefix: str, maps_
     return maps_to_check
 
 
-def filter_for_biomappings(target_onto_prefix: str, source_onto_prefix: str, maps_to_check):
+def filter_for_biomappings(
+    target_onto_prefix: str, source_onto_prefix: str, maps_to_check
+):
     """Ensure that none of the mappings being evaluated are in biomappings already."""
     target_name = target_onto_prefix.lower()
     source_name = source_onto_prefix.lower()
@@ -364,32 +348,26 @@ def filter_for_biomappings(target_onto_prefix: str, source_onto_prefix: str, map
         + biomappings.load_predictions()
     )
 
-    # onto_filter = lambda x: (x["target prefix"].lower() == strip_digits(target_name)) & (
-    #     x["source prefix"].lower() == strip_digits(source_name)
-    # )
-    # iri_map = lambda x: (
-    #     SOURCE_PREFIX_IRI_MAPS[target_name](x["target identifier"]),
-    #     SOURCE_PREFIX_IRI_MAPS[source_name](x["source identifier"]),
-    # )
-    # known_filter = lambda x: x not in biomappping_maps_to_check_against
     def onto_filter(x):
         """Filter to ensure that maps are in the right ontology."""
-        return (x["target prefix"].lower() == strip_digits(target_name)) & (
-            x["source prefix"].lower() == strip_digits(source_name)
+        return (x["target prefix"].lower() == target_name) & (
+            x["source prefix"].lower() == source_name
         )
 
     def iri_map(x):
         """Map each row to it's iri."""
         return (
-            SOURCE_PREFIX_IRI_MAPS[target_name](x["target identifier"]),
-            SOURCE_PREFIX_IRI_MAPS[source_name](x["source identifier"]),
+            get_iri_overload(x["target prefix"], x["target identifier"]),
+            get_iri_overload(x["source prefix"], x["source identifier"]),
         )
 
     def known_filter(x):
         """Filter for mappings not in biomappings."""
         return x not in biomappping_maps_to_check_against
 
-    biomappping_maps_to_check_against = set(map(iri_map, filter(onto_filter, biomappings_maps)))
+    biomappping_maps_to_check_against = set(
+        map(iri_map, filter(onto_filter, biomappings_maps))
+    )
     maps_not_in_biomappings = filter(known_filter, maps_to_check)
     return maps_not_in_biomappings
 
@@ -400,7 +378,10 @@ def check_ambagious_maps(maps_not_in_biomappings):
     value_counts = reduce(
         lambda acc, item: {
             **acc,
-            **{f: {**acc.get(f, {}), item[f]: acc.get(f, {}).get(item[f], 0) + 1} for f in [0, 2]},
+            **{
+                f: {**acc.get(f, {}), item[f]: acc.get(f, {}).get(item[f], 0) + 1}
+                for f in [0, 2]
+            },
         },
         maps_not_in_biomappings,
         {},
