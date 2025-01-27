@@ -4,9 +4,16 @@ __pycache__/
 # Distribution / packaging
 *.egg-info/
 <<<<<<< HEAD
+<<<<<<< HEAD
 .gitattributes
 .venv
 .cahce
 poetry.lock
 =======
 >>>>>>> 7c200ff (cleaned up some dependincies)
+=======
+.gitattributes
+
+## development 
+dev
+>>>>>>> a02e57c (refactored code for bioregistires)

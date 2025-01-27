@@ -17,11 +17,16 @@ dependencies = [
     "deeponto",
     "biomappings",
 <<<<<<< HEAD
+<<<<<<< HEAD
     "bioregistry",
     "black",
     "indra",
 =======
 >>>>>>> 4a3641b (changed how project builds)
+=======
+    "bioregistry",
+    "black"
+>>>>>>> a02e57c (refactored code for bioregistires)
 ]
 requires-python = ">=3.10,<3.11"
 
