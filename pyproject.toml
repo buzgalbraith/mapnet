@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mapnet"
+version = "2025.0.0"
+dependencies = [
+    "jpype1",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "deeponto",
+    "biomappings",
+    "bioregistry",
+    "black"
+]
+requires-python = ">=3.10,<3.11"
+
+description = "Algorithms for semantic mappings between different ontologies."
+readme = "README.md"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://github.com/gyorilab/mapnet"
+Repository = "https://github.com/gyorilab/mapnet.git"
+"Bug Tracker" = "https://github.com/gyorilab/mapnet/issues"
+
