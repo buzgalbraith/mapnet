@@ -4,8 +4,8 @@ from deeponto.align.bertmap import DEFAULT_CONFIG_FILE, BERTMapPipeline
 ## setup betmap config 
 config = BERTMapPipeline.load_bertmap_config(DEFAULT_CONFIG_FILE)
 config.known_mappings = "knownMaps/doid_to_mesh_provided_maps.tsv"
-config.output_path = '/Users/f363673/Workspace/gyori_work/mapnet/'
-config.global_matching.enabled = False
+config.output_path = '/home/buzgalbraith/workspaace/mapnet/'
+config.global_matching.enabled = True
 
 ## set up ontologies
 src_onto_file = "resources/doid.owl"  
