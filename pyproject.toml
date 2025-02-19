@@ -7,6 +7,7 @@ name = "mapnet"
 version = "2025.0.0"
 dependencies = [
     "jpype1",
+    "polars",
     "torch",
     "torchvision",
     "torchaudio",
