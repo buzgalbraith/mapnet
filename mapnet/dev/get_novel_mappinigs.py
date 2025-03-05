@@ -50,22 +50,29 @@ res = predicted_mappings.filter(
 
 
 res.with_columns(
-    source_prefix=pl.lit("DOID"),
-    source_identifier=pl.col("SrcEntity").str.strip_prefix(
+    pl.lit("DOID").alias('source prefix'),
+    pl.col("SrcEntity").str.strip_prefix(
         "http://purl.obolibrary.org/obo/DOID_"
-    ),
-    source_name=pl.col("SrcEntity")
+    ).alias('source identifier'),
+    pl.col("SrcEntity")
     .str.strip_prefix("http://purl.obolibrary.org/obo/")
     .str.replace("_", ":")
-    .map_elements(lambda x: g.nodes[x]["name"], return_dtype=pl.String),
-    relation=pl.lit("skos:exactMatch"),
-    target_prefix=pl.lit("MESH"),
-    target_identifier=pl.col("TgtEntity").str.strip_prefix(
+    .map_elements(lambda x: g.nodes[x]["name"], return_dtype=pl.String).alias('source name'),
+    pl.lit("skos:exactMatch").alias('relation'),
+    pl.lit("MESH").alias('target prefix'),
+    pl.col("TgtEntity").str.strip_prefix(
         "http://purl.bioontology.org/ontology/MESH/"
-    ),
-    target_name=pl.col("TgtEntity")
+    ).alias('target identifier'),
+    pl.col("TgtEntity")
     .str.strip_prefix("http://purl.bioontology.org/ontology/MESH/")
-    .map_elements(lambda x: mesh_client.get_mesh_name(x), return_dtype=pl.String),
-).sort(by=pl.col("source_identifier")).write_csv(
-    f"doid_mesh_mappings_bertmap_{get_current_date_ymd()}.tsv", separator="\t"
-)
+    .map_elements(lambda x: mesh_client.get_mesh_name(x), return_dtype=pl.String).alias("target name"),
+    pl.lit("semapv:SemanticSimilarityThresholdMatching").alias('type'), 
+    pl.col('Score').alias('confidence'), 
+    pl.lit("BERTMap").alias('source'),
+    ).select(
+        ['source prefix', 'source identifier', 'source name', 'relation', 'target prefix', 'target identifier', 'target name', 'type', 'confidence', 'source']
+    ).sort(by=pl.col("source identifier")).write_csv(
+        f"doid_mesh_mappings_bertmap_{get_current_date_ymd()}.tsv", separator="\t"
+    )
+
+
