@@ -27,4 +27,3 @@ license-files = ["LICENSE"]
 Homepage = "https://github.com/gyorilab/mapnet"
 Repository = "https://github.com/gyorilab/mapnet.git"
 "Bug Tracker" = "https://github.com/gyorilab/mapnet/issues"
-
