@@ -1,0 +1,10 @@
+#!/bin/sh  
+java -jar \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    /package/logmap/logmap-matcher-4.0.jar \
+    MATCHER \
+    file:///package/resources/doid.owl \
+    file:///package/resources/mesh_primary_disseae.owl \
+    /package/output/ \
+    false ## classify input ontologies along with mapping?
+
