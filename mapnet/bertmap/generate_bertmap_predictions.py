@@ -66,7 +66,6 @@ def get_iri_overload(prefix: str, identifier: str):
         return "http://purl.bioontology.org/ontology/MESH/" + identifier
 
 
-
 def load_bertmap(
     config: str,
     target_ontology_train: str,

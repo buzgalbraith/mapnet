@@ -1,12 +1,14 @@
 import datetime
 import subprocess
-import os 
+import os
 from bioregistry.resolve import get_owl_download
+
 
 def get_current_date_ymd():
     """Returns the current date as a string in YYYY_MM_DD format."""
     now = datetime.datetime.now()
     return now.strftime("%Y_%m_%d")
+
 
 def download_ontologies(
     target_ontology_train: str,
