@@ -2,7 +2,7 @@ import polars as pl
 from indra.databases import mesh_client
 import obonet
 import biomappings
-from mapnet.bertmap.utils import get_current_date_ymd
+from mapnet.utils import get_current_date_ymd
 
 g = obonet.read_obo(
     "https://raw.githubusercontent.com/DiseaseOntology/"
