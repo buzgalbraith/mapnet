@@ -13,8 +13,9 @@ from huggingface_hub import snapshot_download
 
 import biomappings
 from biomappings.resources import append_prediction_tuples
-from bioregistry.resolve import get_owl_download
 from bioregistry import parse_iri, get_iri
+
+from mapnet.utils import download_ontologies
 
 parser = argparse.ArgumentParser(description="Train BERTMap Model")
 parser.add_argument("--config", default=DEFAULT_CONFIG_FILE, help="Path to Config File")
@@ -65,47 +66,6 @@ def get_iri_overload(prefix: str, identifier: str):
         return "http://purl.bioontology.org/ontology/MESH/" + identifier
 
 
-# pull ontologies
-def download_ontologies(
-    target_ontology_train: str,
-    source_ontology_train: str,
-    source_ontologies_inference: list,
-    target_ontologies_inference: list,
-    ontologies_path: str,
-):
-    """Download OWL Files for specified ontologies."""
-    os.makedirs(ontologies_path, exist_ok=True)
-    ontology_paths = {}
-    for ontology in (
-        [target_ontology_train, source_ontology_train]
-        + source_ontologies_inference
-        + target_ontologies_inference
-    ):
-        if ontology.upper() == "MESH":
-            ## bio-registry does not have a download link for mesh so adding this
-            ext = ".ttl"
-            url = "https://data.bioontology.org/ontologies/MESH/submissions/28/download?apikey=8b5b7825-538d-40e0-9e9e-5ab9274a9aeb"
-        else:
-            ext = ".owl"
-            url = get_owl_download(ontology.upper())
-        ontology_path = os.path.join(ontologies_path, ontology.lower() + ext)
-        ontology_paths[ontology.lower()] = ontology_path
-        if not os.path.isfile(ontology_path):
-            print("Downloading {0}".format(ontology))
-            cmd = ["wget", "-O", ontology_path, url]
-            subprocess.run(cmd)
-            ## mesh is large so download the zip and unzip it.
-            if ontology.upper() == "MESH":
-                cmd_1 = ["mv", ontology_path, ontology_path + ".zip"]
-                subprocess.run(cmd_1)
-                cmd_2 = ["unzip", ontology_path + ".zip", "-d", ontology_path + "_dir"]
-                subprocess.run(cmd_2)
-                cmd_3 = ["mv", ontology_path + "_dir/MESH.ttl", ontology_path]
-                subprocess.run(cmd_3)
-        else:
-            print("found {0} at {1}".format(ontology.lower(), ontology_path))
-    return ontology_paths
-
 
 def load_bertmap(
     config: str,
@@ -113,19 +73,25 @@ def load_bertmap(
     source_ontology_train: str,
     ontology_paths: dict,
     use_biomappings: bool = False,
+    known_map_path: str = None,
     train_model: bool = False,
 ):
     """Load in the bertmap model (will download from hugging face if not present in ./bertmap)."""
     config = BERTMapPipeline.load_bertmap_config(config)
-
+    print("-" * 100)
+    use_biomappings = (known_map_path is None) & use_biomappings
     if use_biomappings:
-        print("-" * 100)
         print("generating known mappings")
         config.known_mappings = save_known_maps(
             target_ontology_train=target_ontology_train,
             source_ontology_train=source_ontology_train,
             mappings_path="knownMaps",
         )
+    elif known_map_path:
+        print(f"loading known mappings from {known_map_path}")
+        config.known_mappings = known_map_path
+    else:
+        print("not loading known mappings")
     print("-" * 100)
     print("Using config: \n{0}".format(config))
     print("-" * 100)
