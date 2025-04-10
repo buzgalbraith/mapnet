@@ -4,7 +4,7 @@ java -jar \
     /package/logmap/logmap-matcher-4.0.jar \
     MATCHER \
     file:///package/resources/doid.owl \
-    file:///package/resources/mesh_primary_disseae.owl \
+    file:///package/resources/mesh_primary_disease.owl \
     /package/output/ \
     false ## classify input ontologies along with mapping?
 
