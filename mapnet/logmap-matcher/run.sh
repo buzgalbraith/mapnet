@@ -1,5 +1,6 @@
 #!/bin/sh  
 java -jar \
+    -Xmx32g \
     --add-opens java.base/java.lang=ALL-UNNAMED \
     /package/logmap/logmap-matcher-4.0.jar \
     MATCHER \
