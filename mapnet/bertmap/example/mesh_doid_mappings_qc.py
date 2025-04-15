@@ -53,41 +53,11 @@ if __name__ == "__main__":
     biomappings_maps = biomappings_maps_mesh_to_doid.vstack(
         biomappings_maps_doid_to_mesh
     )
-    res = predicted_mappings.filter(
-        (
-            ~predicted_mappings["source identifier"].is_in(
-                known_mappings["source identifier"]
-            )
-        )
-        & (
-            ~predicted_mappings["source identifier"].is_in(
-                biomappings_maps["source identifier"]
-            )
-        )
-        & (
-            ~predicted_mappings["target identifier"].is_in(
-                biomappings_maps["target identifier"]
-            )
-        )
-        & (
-            ~predicted_mappings["source identifier"].is_in(
-                biomappings_maps["target identifier"]
-            )
-        )
-        & (
-            ~predicted_mappings["target identifier"].is_in(
-                biomappings_maps["target identifier"]
-            )
-        )
-        & (
-            ~predicted_mappings["target identifier"].is_in(
-                known_mappings["target identifier"]
-            )
-        )
-    )
-
-    res = (
-        res.with_columns(
+    evidence = known_mappings.select(['source identifier', 'target identifier']).vstack(biomappings_maps.select(['source identifier', 'target identifier']))
+    novel_predictions = predicted_mappings.join(evidence, on=['target identifier'], how='anti')
+    novel_predictions = novel_predictions.join(evidence, on=['source identifier'], how='anti').sort(by=pl.col("source identifier"))
+    novel_predictions = (
+        novel_predictions.with_columns(
             pl.lit("DOID").alias("source prefix"),
             pl.col("SrcEntity")
             .str.strip_prefix("http://purl.obolibrary.org/obo/")
@@ -123,6 +93,6 @@ if __name__ == "__main__":
         .sort(by=pl.col("source identifier"))
     )
 
-    res.write_csv(
+    novel_predictions.write_csv(
         f"doid_mesh_mappings_bertmap_{get_current_date_ymd()}.tsv", separator="\t"
     )
