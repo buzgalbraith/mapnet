@@ -3,8 +3,15 @@
 import polars as pl
 from indra.databases import mesh_client
 import obonet
-import biomappings
-from mapnet.utils import get_current_date_ymd
+from mapnet.utils import get_current_date_ymd, get_novel_mappings, format_mappings
+
+
+def permissive_map(x):
+    """a function to get the name of a given DOID entity, will return 'NO NAME FOUND', if the entity does not exist."""
+    try:
+        return g.nodes[x]["name"]
+    except:
+        return "NO NAME FOUND"
 
 
 if __name__ == "__main__":
@@ -12,87 +19,33 @@ if __name__ == "__main__":
         "https://raw.githubusercontent.com/DiseaseOntology/"
         "HumanDiseaseOntology/main/src/ontology/HumanDO.obo"
     )
-
     known_mappings_path = "knownMaps/doid_to_mesh_provided_maps.tsv"
     predicted_mappings_path = "bertmap/match/repaired_mappings.tsv"
-
-    known_mappings = pl.read_csv(
-        known_mappings_path, separator="\t", infer_schema=False
-    ).with_columns(
-        pl.col("SrcEntity")
-        .str.split("/")
-        .list.get(-1)
-        .str.replace("_", ":")
-        .alias("source identifier"),
-        pl.col("TgtEntity").str.split("/").list.get(-1).alias("target identifier"),
+    ## load in predicted mappings and format them
+    raw_maps = pl.read_csv(
+        predicted_mappings_path,
+        separator="\t",
+        has_header=True,
     )
-    predicted_mappings = pl.read_csv(
-        predicted_mappings_path, separator="\t", infer_schema=False
-    ).with_columns(
-        pl.col("SrcEntity")
-        .str.split("/")
-        .list.get(-1)
-        .str.replace("_", ":")
-        .alias("source identifier"),
-        pl.col("TgtEntity").str.split("/").list.get(-1).alias("target identifier"),
-    )
-    biomappings_maps_doid_to_mesh = (
-        pl.from_records(
-            biomappings.load_mappings(), strict=False, infer_schema_length=None
-        )
-        .filter(pl.col("source prefix").eq("doid"))
-        .filter(pl.col("target prefix").eq("mesh"))
-    )
-    biomappings_maps_mesh_to_doid = (
-        pl.from_records(
-            biomappings.load_mappings(), strict=False, infer_schema_length=None
-        )
-        .filter(pl.col("source prefix").eq("mesh"))
-        .filter(pl.col("target prefix").eq("doid"))
-    )
-    biomappings_maps = biomappings_maps_mesh_to_doid.vstack(
-        biomappings_maps_doid_to_mesh
-    )
-    evidence = known_mappings.select(['source identifier', 'target identifier']).vstack(biomappings_maps.select(['source identifier', 'target identifier']))
-    novel_predictions = predicted_mappings.join(evidence, on=['target identifier'], how='anti')
-    novel_predictions = novel_predictions.join(evidence, on=['source identifier'], how='anti').sort(by=pl.col("source identifier"))
-    novel_predictions = (
-        novel_predictions.with_columns(
-            pl.lit("DOID").alias("source prefix"),
-            pl.col("SrcEntity")
-            .str.strip_prefix("http://purl.obolibrary.org/obo/")
-            .str.replace("_", ":")
-            .map_elements(lambda x: g.nodes[x]["name"], return_dtype=pl.String)
-            .alias("source name"),
-            pl.lit("skos:exactMatch").alias("relation"),
-            pl.lit("MESH").alias("target prefix"),
-            pl.col("TgtEntity")
-            .str.strip_prefix("http://purl.bioontology.org/ontology/MESH/")
-            .map_elements(
-                lambda x: mesh_client.get_mesh_name(x), return_dtype=pl.String
-            )
-            .alias("target name"),
-            pl.lit("semapv:SemanticSimilarityThresholdMatching").alias("type"),
-            pl.col("Score").alias("confidence"),
-            pl.lit("BERTMap").alias("source"),
-        )
-        .select(
-            [
-                "source prefix",
-                "source identifier",
-                "source name",
-                "relation",
-                "target prefix",
-                "target identifier",
-                "target name",
-                "type",
-                "confidence",
-                "source",
-            ]
-        )
-        .sort(by=pl.col("source identifier"))
+    predicted_mappings = format_mappings(
+        df=raw_maps,
+        source_prefix="DOID",
+        target_prefix="MESH",
+        matching_source="BERTMAP",
+        source_name_func=permissive_map,
+        target_name_func=mesh_client.get_mesh_name,
     )
 
+    ## get the novel mappings
+    novel_predictions = get_novel_mappings(
+        predicted_mappings=predicted_mappings,
+        target_prefix="MESH",
+        source_prefix="DOID",
+        source_name_func=permissive_map,
+        target_name_func=mesh_client.get_mesh_name,
+        known_mappings_path=known_mappings_path,
+    )
+    ## write the results to a tsv file.
     novel_predictions.write_csv(
         f"doid_mesh_mappings_bertmap_{get_current_date_ymd()}.tsv", separator="\t"
     )
