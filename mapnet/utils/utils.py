@@ -2,6 +2,8 @@ import datetime
 import subprocess
 import os
 from bioregistry.resolve import get_owl_download
+import polars as pl
+from typing import Callable
 
 
 def get_current_date_ymd():
@@ -49,3 +51,60 @@ def download_ontologies(
         else:
             print("found {0} at {1}".format(ontology.lower(), ontology_path))
     return ontology_paths
+
+
+def format_mappings(
+    df: pl.DataFrame,
+    source_prefix: str,
+    target_prefix: str,
+    matching_source: str,
+    source_name_func: Callable,
+    target_name_func: Callable,
+    only_mapping_cols: bool = True,
+    relation: str = "skos:exactMatch",
+    match_type: str = "semapv:SemanticSimilarityThresholdMatching",
+):
+    """formats a polars dataframe of mappings for use in biomapings"""
+    df = df.with_columns(
+        pl.col("SrcEntity")
+        .str.split("/")
+        .list.get(-1)
+        .str.replace("_", ":")
+        .alias("source identifier"),
+        pl.col("TgtEntity")
+        .str.split("/")
+        .list.get(-1)
+        .str.replace("_", ":")
+        .alias("target identifier"),
+        pl.lit(source_prefix.upper()).alias("source prefix"),
+        pl.lit(target_prefix.upper()).alias("target prefix"),
+        pl.lit(relation).alias("relation"),
+        pl.lit(match_type).alias("type"),
+        pl.lit(matching_source).alias("source"),
+        pl.col("Score").alias("confidence"),
+    ).with_columns(
+        pl.col("source identifier")
+        .map_elements(source_name_func, return_dtype=pl.String)
+        .alias("source name"),
+        pl.col("target identifier")
+        .map_elements(target_name_func, return_dtype=pl.String)
+        .alias("target name"),
+    )
+    return (
+        df
+        if not only_mapping_cols
+        else df.select(
+            [
+                "source prefix",
+                "source identifier",
+                "source name",
+                "relation",
+                "target prefix",
+                "target identifier",
+                "target name",
+                "type",
+                "confidence",
+                "source",
+            ]
+        )
+    )
