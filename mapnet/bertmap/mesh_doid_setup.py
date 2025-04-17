@@ -1,7 +1,7 @@
 """This will download the required ontologies, filter Mesh to primary diseases, and find mappings between the two provided in DOID"""
 
-from mapnet.bertmap.generate_bertmap_predictions import download_ontologies
-from mapnet.bertmap.filtering import filter_non_diseases, filter_supplemental
+from mapnet.bertmap import download_ontologies
+from mapnet.bertmap import filter_non_diseases, filter_supplemental
 from deeponto.onto import Ontology
 import os
 

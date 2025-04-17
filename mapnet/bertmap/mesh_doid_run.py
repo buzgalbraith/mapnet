@@ -1,7 +1,7 @@
 """This will fit a Bertmap model to the data and produce mappings between the two ontologies."""
 
 from deeponto.align.bertmap import DEFAULT_CONFIG_FILE
-from mapnet.bertmap.generate_bertmap_predictions import load_bertmap
+from mapnet.bertmap import load_bertmap
 
 
 if __name__ == "__main__":
